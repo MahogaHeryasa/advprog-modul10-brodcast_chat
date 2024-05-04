@@ -2,6 +2,7 @@ use futures_util::sink::SinkExt;
 use futures_util::stream::StreamExt;
 use std::error::Error;
 use std::net::SocketAddr;
+use gethostname::gethostname;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::broadcast::{channel, Sender};
 use tokio_websockets::{Message, ServerBuilder, WebSocketStream};
@@ -27,7 +28,7 @@ async fn handle_connection(
                     Some(Ok(msg)) => {
                         if let Some(text) = msg.as_text() {
                             println!("From client {addr:?} {text:?}");
-                            bcast_tx.send(text.into())?;
+                            bcast_tx.send(format!("{addr} : {text}"))?;
                         }
                     }
                     Some(Err(err)) => return Err(err.into()),
@@ -48,9 +49,11 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     let listener = TcpListener::bind("127.0.0.1:8080").await?;
     println!("listening on port 8080");
 
+    let hostname = gethostname().into_string().unwrap_or_else(|_| "unknown".to_string());
+    
     loop {
         let (socket, addr) = listener.accept().await?;
-        println!("New connection from {addr:?}");
+        println!("New connection from {}'s Computer{}", hostname, addr);
         let bcast_tx = bcast_tx.clone();
         tokio::spawn(async move {
             // Wrap the raw TCP stream into a websocket.
